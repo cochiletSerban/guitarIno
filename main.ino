@@ -131,6 +131,7 @@ void colorWheel(int dly) {
         writeHSV(hue, 1, 1);
         delay(dly);
     }
+    led.off();
 }
 
 
