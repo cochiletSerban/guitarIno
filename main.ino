@@ -6,9 +6,11 @@ const byte potPin = 0;
 const byte interruptPin = 2;
 const byte muxInPin = 3;
 
-volatile int brightness = 0;
-volatile int mode = 0;
+volatile int selectedRange = 0;
+volatile int mode = 1;
 volatile int selectedColor = 0;
+volatile int fxDelay = 500;
+volatile int brightness = 100;
 
 byte controlPins[] = {
     B00000000,
@@ -51,23 +53,27 @@ void loop() {
     switch (mode) {
         case 1:
             Serial.println("mode 1 is selected");
-            solidColorFlash(ledColor, 500);
+            solidColorFlash(ledColor, fxDelay);
             break;
         case 2:
             Serial.println("mode 2 is selected");
-            solidColorFlash(RGBLed::RED, 500);
+            breathe(ledColor, fxDelay);
             break;
         case 3:
+            colorWheel(brightness);
             Serial.println("mode 3 is selected");
             break;
         case 4:
             Serial.println("mode 4 is selected");
-            break;
-        case 5:
-            Serial.println("mode 5 is selected");
+            led.brightness(ledColor, brightness);
             break;
     }
+
+    free(ledColor);
 }
+
+// be able to modify color wheel spd , fix brit at 100%
+// test everyting
 
 int readMux() {
     for (int i = 0; i < 16; i++) {
@@ -80,9 +86,32 @@ int readMux() {
 
 void modeSelect() {
     int selectedNumber = readMux();
-    int * color = getLedColor(selectedNumber);
-    led.setColor(color);
+    selectedRange = analogRead(potPin);
+    int * color = getLedColor(selectedColor);
+
+    if (selectedRange <= 1) {
+        selectedColor = selectedNumber;
+        led.setColor(color);
+    } else {
+        mode = selectedNumber;
+        if (mode == 1 || mode == 2 || mode == 3) {
+            if (selectedRange >= 100) {
+                fxDelay = map(selectedRange, 100, 1023, 40, 1023);
+            } else {
+                fxDelay = 40;
+            }
+            led.brightness(color, mapSelectedRangeToBrightness(selectedRange));
+        } else if (mode > 3) {
+            brightness = mapSelectedRangeToBrightness(selectedRange);
+            led.brightness(color, brightness);
+        }
+    }
+
+    Serial.println(fxDelay);
+
     free(color);
+
+    led.off();
 }
 
 
@@ -97,9 +126,9 @@ void breathe(int color[3], int delay) {
     led.fadeOut(color, 10, delay / 2);
 }
 
-void colorWheel(int dly, int brightness) {
-    for (int hue = 0; hue < 360; hue++) {
-        writeHSV(hue, 1, 1, brightness);
+void colorWheel(int dly) {
+    for (int hue = 0; hue < 360 && mode == 3; hue++) {
+        writeHSV(hue, 1, 1);
         delay(dly);
     }
 }
@@ -107,7 +136,14 @@ void colorWheel(int dly, int brightness) {
 
 // ////////////////////////////// HELPERS /////////////////////////////////// //
 
-void writeHSV(int h, double s, double v, int brightness) {
+int mapSelectedRangeToBrightness(int selectedRange) {
+    if (selectedRange > 100) {
+        return map(selectedRange, 100, 1023, 5, 100);
+    }
+    return 0;
+}
+
+void writeHSV(int h, double s, double v) {
     //this is the algorithm to convert from RGB to HSV
     double r = 0;
     double g = 0;
@@ -155,9 +191,9 @@ void writeHSV(int h, double s, double v, int brightness) {
     }
 
     //set each component to a integer value between 0 and 255
-    int red = constrain((int) 255 * r, 0, brightness);
-    int green = constrain((int) 255 * g, 0, brightness);
-    int blue = constrain((int) 255 * b, 0, brightness);
+    int red = constrain((int) 255 * r, 0, 255);
+    int green = constrain((int) 255 * g, 0, 255);
+    int blue = constrain((int) 255 * b, 0, 255);
 
     led.setColor(red, green, blue);
 }
@@ -227,6 +263,73 @@ void printColor(int * color) {
     Serial.print(buffer);
 }
 
-    // brightness = map(analogRead(potPin), 0, 1023, 0, 255);
-    // led.setColor(color); // map(brightness + 2, 0, 257, 0, 100)
-    // map(brightness + 2, 0, 257, 0, 100)
+// brightness = map(analogRead(potPin), 0, 1023, 0, 255);
+// led.setColor(color); // map(brightness + 2, 0, 257, 0, 100)
+// map(brightness + 2, 0, 257, 0, 100)
+//map(analogRead(potPin), 0, 1023, 0, 255);
+
+
+
+// if ((mode == 1 || mode == 2) && selectedRange > 1) {
+//     fxDelay = selectedRange;
+
+//     led.brightness(color, map(fxDelay + 2, 0, 1025, 0, 100));
+//     Serial.print("fxDelay: "); Serial.println(fxDelay);
+
+// } else if ((mode == 3 || mode == 4) && selectedRange > 1) {
+//     brightness = map(selectedRange + 2, 0, 1025, 0, 100);
+
+//     led.brightness(color, brightness);
+//     Serial.print("brit: "); Serial.println(brightness);
+// }
+// switch (selectedColor) {
+//         case 1:
+//             color[0] = 255;
+//             color[1] = 0;
+//             color[2] = 0;
+//             break;
+//         case 2:
+//             color[0] = 0;
+//             color[1] = 255;
+//             color[2] = 0;
+//             break;
+//         case 3:
+//             color[0] = 0;
+//             color[1] = 0;
+//             color[2] = 255;
+//             break;
+//         case 4:
+//             color[0] = 255;
+//             color[1] = 0;
+//             color[2] = 255;
+//             break;
+//         case 5:
+//             color[0] = 255;
+//             color[1] = 255;
+//             color[2] = 0;
+//             break;
+//         case 7:
+//             color[0] = 0;
+//             color[1] = 255;
+//             color[2] = 255;
+//             break;
+//         case 8:
+//             color[0] = 255;
+//             color[1] = 165;
+//             color[2] = 0;
+//             break;
+//         case 9:
+//             color[0] = 255;
+//             color[1] = 105;
+//             color[2] = 0;
+//             break;
+//         case 10:
+//             color[0] = 0;
+//             color[1] = 128;
+//             color[2] = 128;
+//             break;
+//         default:
+//             color[0] = 255;
+//             color[1] = 255;
+//             color[2] = 255;
+//     }
